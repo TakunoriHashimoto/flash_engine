@@ -1,64 +1,49 @@
-import numpy as np
+import utils
 import cv2
 
-FILE_PATH = 'inj_80_1002001.png'
 #FILE_PATH = '40053.jpg'
-#FILE_PATH = 'cam_angle_test_10000_hight.cih000046.png'
+#FILE_PATH = "20201109\dist_20\dist_20_4\Photo\dist_20_4_000049.png"
+FILE_PATH = 'cam_angle_test_10000_hight.cih000046.png'
 THRESHOLD = 63     # 閾値
 THRESHOLD_MAX = 255  # 最大閾値
-INJECTER_POINT = [42,265]
+#INJECTER_POINT = [490,433]
+#ANGLE_LINE = 560
+INJECTER_POINT = [490,434]
+#INJECTER_POINT = [515,444]
+ANGLE_LINE = 480
+MASK_RANGE_LIST = [None, ANGLE_LINE, None, None]
 
+#カラー画像→グレースケール→二値化
+img, gray, ret, thresh = utils.get_img_single(FILE_PATH, THRESHOLD, THRESHOLD_MAX)
 
-#カラー画像を読み込んでグレースケール値に変換。
-img=cv2.imread(FILE_PATH)
-gray=cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
-print('解像度' , img.shape)
-#thresholdを使って二値化。
-ret,thresh = cv2.threshold(gray,THRESHOLD,THRESHOLD_MAX,cv2.THRESH_BINARY)
+#輪郭を検出
+contours, hierarchy, max_area, max_id = utils.get_contour(thresh)
 
-#輪郭を検出。
-contours,hierarchy = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-# １つずつの輪郭面積を出力
-max_id, max_area = -1, 0
-for i in range(len(contours)):
-    #each_contour = img.copy()
-    print('ID', i, 'Area', cv2.contourArea(contours[i]))
-    #each_contour = cv2.drawContours(each_contour, contours, i, (0,255,0), 2)
-    #cv2.imshow('result' + str(i) + '.png', each_contour)
-    cnt = contours[i]
-    area = cv2.contourArea(cnt)
-    # 最大の輪郭を見つける
-    if area > max_area:
-        max_area = area
-        max_id = i
-cnt = contours[max_id]
-max_x = cnt[...,0].max()                # 最右ピクセル
-min_x = cnt[...,0].min()                # 最左ピクセル
-max_y = cnt[...,1].max()                # 最下ピクセル
-min_y = cnt[...,1].min()                # 最上ピクセル
-width = max_x - min_x                   # 横幅
-height = max_y - min_y                  # 縦幅
-spray_d = max_y - INJECTER_POINT[0]     # 噴霧到達距離
+#噴霧距離計算
+max_contour_area, width, height, spray_d = utils.calc_spray_d(contours, max_id, INJECTER_POINT)
 
-print('最大輪郭面積',cv2.contourArea(contours[max_id]))
-print('最左ピクセル' , min_x , '最右ピクセル' , max_x)
-print('最上ピクセル' , min_y , '最下ピクセル' , max_y)
-print('横幅' , width)
-print('縦幅' , height)
-print('噴霧到達距離' , spray_d)
+# 噴霧角算出
+mask, msk_img = utils.create_mask(gray, MASK_RANGE_LIST)
+r_angle_point, l_angle_point, spray_angle = utils.calc_spray_angle(msk_img, THRESHOLD, THRESHOLD_MAX, ANGLE_LINE, INJECTER_POINT)
 
 # 全輪郭画像の表示
-all_contours=cv2.drawContours(img,contours,-1,(0,255,0),4)
+cv2.drawContours(img, contours, -1, (147, 20, 255), 1)
+cv2.drawContours(img, contours, max_id, (0, 255, 0), 3)
+cv2.circle(img, tuple(r_angle_point), 4, (0, 0, 255), thickness=-1)
+cv2.circle(img, tuple(l_angle_point), 4, (0, 0, 255), thickness=-1)
+all_contours = cv2.circle(img, tuple(INJECTER_POINT), 4, (0, 0, 255), thickness=-1)
 
 #最大輪郭面積を出力
-max_contour = max(contours, key = lambda x: cv2.contourArea(x))
-out = np.zeros_like(img)
-cv2.drawContours(out, [max_contour], -1, color=255, thickness=-1)
+#max_contour = max(contours, key = lambda x: cv2.contourArea(x))
+#out = np.zeros_like(img)
+#cv2.drawContours(out, [max_contour], -1, color=255, thickness=-1)
 
 # 表示
-cv2.imshow('binarized',thresh)
+#cv2.imshow('binarized',thresh)
 cv2.imshow('all_contours',all_contours)
-cv2.imshow('out.png', out)
+#cv2.imshow('out.png', out)
+#cv2.imshow('mask', msk_img)
+cv2.imwrite('hoge4.png', all_contours)
 
 #キー入力で全画像消去
 cv2.waitKey(0)
